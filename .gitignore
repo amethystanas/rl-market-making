@@ -1,0 +1,25 @@
+# Build output
+orderbook/build/
+build/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Market data (download with scripts/download_data.sh)
+data/
+
+# Models: only the shipped A2C checkpoint is versioned
+models/*
+!models/a2c.pt
+!models/a2c_training_log.csv
+
+# Secrets
+.env
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --wash: rgba(11, 11, 11, 0.04);
+    --series-mid: #2a78d6;
+    --series-bid: #1baf7a;
+    --series-ask: #eb6834;
+    --good: #006300;
+    --bad: #d03b3b;
+    --warn: #fab219;
+    --live: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #f0efec;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --wash: rgba(255, 255, 255, 0.05);
+      --series-mid: #3987e5;
+      --series-bid: #199e70;
+      --series-ask: #d95926;
+      --good: #0ca30c;
+      --bad: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --wash: rgba(255, 255, 255, 0.05);
+    --series-mid: #3987e5;
+    --series-bid: #199e70;
+    --series-ask: #d95926;
+    --good: #0ca30c;
+    --bad: #e66767;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 650; letter-spacing: -0.01em; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 2px 10px; font-size: 12px; color: var(--ink-2); background: var(--surface);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--live); }
+  .dot.stale { background: var(--warn); }
+  .spacer { flex: 1; }
+  button {
+    font: inherit; font-size: 12px; color: var(--ink-2); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  button:hover { background: var(--wash); }
+  button[aria-pressed="true"] { color: var(--ink); font-weight: 600; border-color: var(--axis); }
+
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .kpi-value { font-size: 24px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi-sub { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+  .up { color: var(--good); }
+  .down { color: var(--bad); }
+  .meter { height: 6px; border-radius: 3px; background: var(--wash); margin-top: 8px; overflow: hidden; }
+  .meter > div { height: 100%; width: 0; background: var(--series-mid); border-radius: 3px; transition: width .3s; }
+
+  .grid-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 12px; margin-bottom: 12px; }
+  .grid-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .card-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .card-title h2 { font-size: 14px; margin: 0; font-weight: 600; }
+  .card-title .hint { font-size: 12px; color: var(--muted); }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw-line { width: 16px; height: 2px; border-radius: 1px; }
+  .sw-step { width: 16px; height: 0; border-top: 2px dashed; }
+  .sw-tri { font-size: 11px; line-height: 1; }
+  .chart-box { position: relative; height: 320px; }
+  .chart-box.small { height: 180px; }
+
+  .decision-kind {
+    display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); background: var(--wash);
+  }
+  .reason { margin: 8px 0 14px; color: var(--ink-2); word-break: break-word; }
+  .section-label { font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+  .prob-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) 44px; align-items: center; gap: 8px; margin: 6px 0; font-size: 13px; }
+  .prob-row .bar { height: 10px; background: var(--wash); border-radius: 0 4px 4px 0; overflow: hidden; }
+  .prob-row .bar > div { height: 100%; background: var(--series-mid); border-radius: 0 4px 4px 0; transition: width .3s; }
+  .prob-row.chosen { font-weight: 650; }
+  .prob-row:not(.chosen) .bar > div { opacity: .45; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; text-align: right; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--axis); white-space: nowrap; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  td.reason-cell { white-space: normal; min-width: 220px; color: var(--ink-2); }
+  th.r, td.r { text-align: right; }
+  tr.has-fill td { background: var(--wash); }
+
+  .empty { text-align: center; padding: 48px 16px; color: var(--ink-2); }
+  .empty code { background: var(--wash); padding: 2px 6px; border-radius: 4px; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 960px) {
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-main, .grid-two { grid-template-columns: minmax(0, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Trading agent</h1>
+    <span class="pill" id="strategy">strategy: –</span>
+    <span class="pill" id="symbol">–</span>
+    <span class="pill"><span class="dot" id="status-dot"></span><span id="status-text">connecting…</span></span>
+    <span class="spacer"></span>
+    <span role="group" aria-label="Time window">
+      <button data-window="300">5 min</button>
+      <button data-window="900" aria-pressed="true">15 min</button>
+      <button data-window="0">All</button>
+    </span>
+    <button id="theme-toggle" title="Toggle light / dark">Theme</button>
+  </header>
+
+  <div class="card empty" id="empty">
+    <p><strong>Waiting for the agent…</strong></p>
+    <p>Start the live feed with <code>scripts/run_feed.sh</code> and an agent with
+      <code>python -m agents.main --strategy a2c</code>.<br>This page updates on its own.</p>
+  </div>
+
+  <main id="content" hidden>
+    <section class="kpis">
+      <div class="card"><div class="kpi-label">Mid price</div><div class="kpi-value num" id="k-mid">–</div><div class="kpi-sub num" id="k-spread">–</div></div>
+      <div class="card"><div class="kpi-label">Inventory</div><div class="kpi-value num" id="k-inv">–</div><div class="meter"><div id="k-inv-meter"></div></div></div>
+      <div class="card"><div class="kpi-label">P&amp;L (marked to mid)</div><div class="kpi-value num" id="k-pnl">–</div><div class="kpi-sub" id="k-pnl-sub">quote currency</div></div>
+      <div class="card"><div class="kpi-label">Fills</div><div class="kpi-value num" id="k-fills">–</div><div class="kpi-sub num" id="k-fills-sub">–</div></div>
+      <div class="card"><div class="kpi-label">Decisions</div><div class="kpi-value num" id="k-steps">–</div><div class="kpi-sub num" id="k-uptime">–</div></div>
+    </section>
+
+    <section class="grid-main">
+      <div class="card">
+        <div class="card-title"><h2>Price, quotes and fills</h2><span class="hint">hover for details</span></div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="sw-line" style="background:var(--series-mid)"></i>Mid price</span>
+          <span><i class="sw-step" style="border-color:var(--series-bid)"></i>Agent bid</span>
+          <span><i class="sw-step" style="border-color:var(--series-ask)"></i>Agent ask</span>
+          <span><i class="sw-tri" style="color:var(--series-bid)">▲</i>Buy fill</span>
+          <span><i class="sw-tri" style="color:var(--series-ask)">▼</i>Sell fill</span>
+        </div>
+        <div class="chart-box"><canvas id="price-chart" aria-label="Mid price with the agent's quotes and fills"></canvas></div>
+      </div>
+
+      <div class="card" id="decision-card">
+        <div class="card-title"><h2>Latest decision</h2><span class="hint num" id="d-time"></span></div>
+        <span class="decision-kind" id="d-kind">–</span>
+        <div class="reason" id="d-reason"></div>
+
+        <div id="d-probs" hidden>
+          <div class="section-label">Actor: action probabilities π(a | s)</div>
+          <div id="d-prob-rows"></div>
+          <div class="section-label">Critic</div>
+          <dl class="kv"><dt>State value V(s)</dt><dd class="num" id="d-value">–</dd></dl>
+        </div>
+
+        <div id="d-indicators" hidden>
+          <div class="section-label">Indicators</div>
+          <dl class="kv" id="d-ind-list"></dl>
+        </div>
+
+        <div class="section-label">Resting quotes</div>
+        <dl class="kv">
+          <dt>Bid</dt><dd class="num" id="d-bid">–</dd>
+          <dt>Ask</dt><dd class="num" id="d-ask">–</dd>
+        </dl>
+      </div>
+    </section>
+
+    <section class="grid-two">
+      <div class="card">
+        <div class="card-title"><h2>Inventory (lots)</h2></div>
+        <div class="chart-box small"><canvas id="inv-chart" aria-label="Inventory over time"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><h2>P&amp;L (quote currency)</h2></div>
+        <div class="chart-box small"><canvas id="pnl-chart" aria-label="Profit and loss over time"></canvas></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-title">
+        <h2>Decision log</h2>
+        <span class="hint">newest first · rows with fills are shaded ·
+          <label><input type="checkbox" id="hide-idle" checked> hide idle steps</label></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Time</th><th>Signal</th><th>Reason</th><th class="r">Mid</th>
+            <th class="r">Bid quote</th><th class="r">Ask quote</th><th>Fills</th>
+            <th class="r">Inventory</th><th class="r">P&amp;L</th>
+          </tr></thead>
+          <tbody id="log"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+
+const MAX_STEPS = 20000;
+const LOG_ROWS = 60;
+const STALE_AFTER_S = 10;
+
+const state = { offset: 0, start: null, steps: [], windowS: 900 };
+const $ = (id) => document.getElementById(id);
+
+// ---------------------------------------------------------------- formatting
+const fmtTime = (t) => new Date(t * 1000).toLocaleTimeString([], { hour12: false });
+const fmtPrice = (p) => (p == null ? "–" : p.toFixed(2));
+const fmtSigned = (x, d = 4) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(d);
+function fmtDuration(s) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return h ? `${h}h ${m}m` : m ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+// ---------------------------------------------------------------- theme
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+$("theme-toggle").addEventListener("click", () => {
+  const dark = cssVar("color-scheme") === "dark";
+  document.documentElement.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("dashboard-theme", document.documentElement.dataset.theme); } catch (e) {}
+  restyleCharts();
+});
+try {
+  const saved = localStorage.getItem("dashboard-theme");
+  if (saved) document.documentElement.dataset.theme = saved;
+} catch (e) {}
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", restyleCharts);
+
+// ---------------------------------------------------------------- charts
+const crosshair = {
+  id: "crosshair",
+  afterDatasetsDraw(chart) {
+    const active = chart.tooltip && chart.tooltip.getActiveElements();
+    if (!active || !active.length) return;
+    const x = active[0].element.x, { top, bottom } = chart.chartArea, ctx = chart.ctx;
+    ctx.save();
+    ctx.strokeStyle = cssVar("--axis");
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bottom); ctx.stroke();
+    ctx.restore();
+  },
+};
+
+function baseOptions(yTitle) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true,
+    interaction: { mode: "x", intersect: false },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: { title: (items) => (items.length ? fmtTime(items[0].parsed.x) : "") },
+        boxPadding: 4,
+      },
+    },
+    scales: {
+      x: { type: "linear", ticks: { callback: (v) => fmtTime(v), maxTicksLimit: 6, maxRotation: 0 } },
+      y: { title: { display: !!yTitle, text: yTitle } },
+    },
+  };
+}
+
+function lineDataset(label, colorVar, extra = {}) {
+  return { label, data: [], colorVar, borderWidth: 2, pointRadius: 0, pointHoverRadius: 4, tension: 0, ...extra };
+}
+function fillDataset(label, colorVar, rotation) {
+  return { label, data: [], colorVar, type: "scatter", pointStyle: "triangle", rotation,
+           pointRadius: 9, pointHoverRadius: 11, borderWidth: 2, ringed: true };
+}
+
+const priceChart = new Chart($("price-chart"), {
+  type: "line",
+  data: { datasets: [
+    lineDataset("Mid price", "--series-mid"),
+    lineDataset("Agent bid", "--series-bid", { stepped: "before", borderDash: [5, 4], spanGaps: false }),
+    lineDataset("Agent ask", "--series-ask", { stepped: "before", borderDash: [5, 4], spanGaps: false }),
+    fillDataset("Buy fill", "--series-bid", 0),
+    fillDataset("Sell fill", "--series-ask", 180),
+  ] },
+  options: (() => {
+    const o = baseOptions("USDT");
+    o.plugins.tooltip.callbacks.label = (c) => `${c.dataset.label}: ${c.parsed.y.toFixed(2)}`;
+    return o;
+  })(),
+  plugins: [crosshair],
+});
+
+const invChart = new Chart($("inv-chart"), {
+  type: "line",
+  data: { datasets: [lineDataset("Inventory", "--series-mid", { stepped: "before" })] },
+  options: (() => {
+    const o = baseOptions();
+    o.scales.y.beginAtZero = true;
+    o.scales.y.ticks = { precision: 0 };
+    o.plugins.tooltip.callbacks.label = (c) => `Inventory: ${c.parsed.y} lots`;
+    return o;
+  })(),
+  plugins: [crosshair],
+});
+
+const pnlChart = new Chart($("pnl-chart"), {
+  type: "line",
+  data: { datasets: [lineDataset("P&L", "--series-mid")] },
+  options: (() => {
+    const o = baseOptions();
+    o.plugins.tooltip.callbacks.label = (c) => `P&L: ${fmtSigned(c.parsed.y)}`;
+    o.scales.y.grid = { color: (ctx) => (ctx.tick && ctx.tick.value === 0 ? cssVar("--axis") : cssVar("--grid")) };
+    return o;
+  })(),
+  plugins: [crosshair],
+});
+
+const charts = [priceChart, invChart, pnlChart];
+
+function restyleCharts() {
+  const ink2 = cssVar("--ink-2"), muted = cssVar("--muted"), grid = cssVar("--grid"), surface = cssVar("--surface");
+  Chart.defaults.font.family = 'system-ui, -apple-system, "Segoe UI", sans-serif';
+  for (const chart of charts) {
+    for (const ds of chart.data.datasets) {
+      const c = cssVar(ds.colorVar);
+      ds.borderColor = ds.ringed ? surface : c;
+      ds.backgroundColor = c;
+      ds.pointHoverBackgroundColor = c;
+    }
+    for (const axis of Object.values(chart.options.scales)) {
+      axis.ticks = { ...axis.ticks, color: muted };
+      if (!axis.grid || !axis.grid.color || typeof axis.grid.color !== "function") axis.grid = { color: grid };
+      axis.border = { color: cssVar("--axis") };
+      if (axis.title) axis.title.color = muted;
+    }
+    const tt = chart.options.plugins.tooltip;
+    Object.assign(tt, { backgroundColor: surface, titleColor: cssVar("--ink"), bodyColor: ink2,
+                        borderColor: cssVar("--border"), borderWidth: 1 });
+    chart.update("none");
+  }
+}
+
+// ---------------------------------------------------------------- data
+function visibleSteps() {
+  if (!state.steps.length || !state.windowS) return state.steps;
+  const from = state.steps[state.steps.length - 1].time - state.windowS;
+  let i = state.steps.length - 1;
+  while (i > 0 && state.steps[i - 1].time >= from) i--;
+  return state.steps.slice(i);
+}
+
+function updateCharts() {
+  const steps = visibleSteps();
+  const [mid, bid, ask, buys, sells] = priceChart.data.datasets;
+  mid.data = steps.map((s) => ({ x: s.time, y: s.mid }));
+  bid.data = steps.map((s) => ({ x: s.time, y: s.quotes && s.quotes.bid != null ? s.quotes.bid : null }));
+  ask.data = steps.map((s) => ({ x: s.time, y: s.quotes && s.quotes.ask != null ? s.quotes.ask : null }));
+  const fills = steps.flatMap((s) => (s.fills || []).map((f) => ({ ...f, time: s.time })));
+  buys.data = fills.filter((f) => f.side === "BUY").map((f) => ({ x: f.time, y: f.price }));
+  sells.data = fills.filter((f) => f.side === "SELL").map((f) => ({ x: f.time, y: f.price }));
+
+  invChart.data.datasets[0].data = steps.map((s) => ({ x: s.time, y: s.inventory }));
+  if (state.start) invChart.options.scales.y.max = state.start.max_lots;
+  pnlChart.data.datasets[0].data = steps.map((s) => ({ x: s.time, y: s.pnl }));
+
+  const xMin = steps.length ? steps[0].time : undefined, xMax = steps.length ? steps[steps.length - 1].time : undefined;
+  for (const chart of charts) {
+    chart.options.scales.x.min = xMin;
+    chart.options.scales.x.max = xMax;
+    chart.update("none");
+  }
+}
+
+function setText(id, text) { $(id).textContent = text; }
+
+function updateKpis() {
+  const last = state.steps[state.steps.length - 1];
+  if (!last) return;
+  const maxLots = state.start ? state.start.max_lots : 10;
+  setText("k-mid", fmtPrice(last.mid));
+  setText("k-spread", `bid ${fmtPrice(last.bid)} · ask ${fmtPrice(last.ask)}`);
+  setText("k-inv", `${last.inventory} / ${maxLots}`);
+  $("k-inv-meter").style.width = `${(100 * last.inventory) / maxLots}%`;
+  const pnl = $("k-pnl");
+  pnl.textContent = `${last.pnl >= 0 ? "▲" : "▼"} ${fmtSigned(last.pnl)}`;
+  pnl.className = `kpi-value num ${last.pnl > 0 ? "up" : last.pnl < 0 ? "down" : ""}`;
+  const buys = state.steps.reduce((n, s) => n + (s.fills || []).filter((f) => f.side === "BUY").length, 0);
+  setText("k-fills", String(last.trades));
+  setText("k-fills-sub", `${buys} buys · ${last.trades - buys} sells`);
+  setText("k-steps", String(state.steps.length));
+  setText("k-uptime", `running ${fmtDuration(last.time - state.steps[0].time)}`);
+}
+
+function updateDecision() {
+  // The latest step that carried a real decision (not just "waiting for the next bar").
+  const last = state.steps[state.steps.length - 1];
+  if (!last) return;
+  let d = last;
+  for (let i = state.steps.length - 1; i >= 0; i--) {
+    if (state.steps[i].details) { d = state.steps[i]; break; }
+  }
+  setText("d-kind", d.signal);
+  setText("d-time", fmtTime(d.time));
+  setText("d-reason", d.reason || "");
+
+  const details = d.details || {};
+  const probs = details.probabilities;
+  $("d-probs").hidden = !probs;
+  if (probs) {
+    const rows = $("d-prob-rows");
+    rows.replaceChildren();
+    for (const [name, p] of Object.entries(probs)) {
+      const row = document.createElement("div");
+      row.className = "prob-row" + (name === details.action ? " chosen" : "");
+      const label = document.createElement("span");
+      label.textContent = (name === details.action ? "✓ " : "") + name;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("div");
+      fill.style.width = `${(100 * p).toFixed(1)}%`;
+      bar.append(fill);
+      const val = document.createElement("span");
+      val.className = "num";
+      val.style.textAlign = "right";
+      val.textContent = `${Math.round(100 * p)}%`;
+      row.append(label, bar, val);
+      rows.append(row);
+    }
+    setText("d-value", fmtSigned(details.value, 3));
+  }
+
+  const ind = details.indicators;
+  $("d-indicators").hidden = !ind;
+  if (ind) {
+    const list = $("d-ind-list");
+    list.replaceChildren();
+    for (const [k, v] of Object.entries(ind)) {
+      const dt = document.createElement("dt"); dt.textContent = k;
+      const dd = document.createElement("dd"); dd.className = "num"; dd.textContent = Number(v).toFixed(k === "RSI" ? 1 : 3);
+      list.append(dt, dd);
+    }
+  }
+  setText("d-bid", fmtPrice(last.quotes && last.quotes.bid));
+  setText("d-ask", fmtPrice(last.quotes && last.quotes.ask));
+}
+
+function updateLog() {
+  const body = $("log");
+  body.replaceChildren();
+  const hideIdle = $("hide-idle").checked;
+  const isIdle = (s) => s.signal === "HOLD" && !s.details && !(s.fills && s.fills.length);
+  const rows = [];
+  for (let i = state.steps.length - 1; i >= 0 && rows.length < LOG_ROWS; i--) {
+    if (!(hideIdle && isIdle(state.steps[i]))) rows.push(state.steps[i]);
+  }
+  for (const s of rows) {
+    const tr = document.createElement("tr");
+    if (s.fills && s.fills.length) tr.className = "has-fill";
+    const cells = [
+      [fmtTime(s.time), "num"],
+      [s.signal, ""],
+      [s.reason || "", "reason-cell"],
+      [fmtPrice(s.mid), "r num"],
+      [fmtPrice(s.quotes && s.quotes.bid), "r num"],
+      [fmtPrice(s.quotes && s.quotes.ask), "r num"],
+      [(s.fills || []).map((f) => `${f.side === "BUY" ? "▲" : "▼"} ${f.side} ${f.quantity} @ ${f.price.toFixed(2)}`).join(", "), ""],
+      [String(s.inventory), "r num"],
+      [fmtSigned(s.pnl), "r num"],
+    ];
+    for (const [text, cls] of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (cls) td.className = cls;
+      tr.append(td);
+    }
+    body.append(tr);
+  }
+}
+
+function updateStatus() {
+  const last = state.steps[state.steps.length - 1];
+  const dot = $("status-dot");
+  if (!last) {
+    dot.className = "dot";
+    setText("status-text", state.start ? "agent started, waiting for market data" : "waiting for agent");
+    return;
+  }
+  const age = Date.now() / 1000 - last.time;
+  const stale = age > STALE_AFTER_S;
+  dot.className = "dot " + (stale ? "stale" : "live");
+  setText("status-text", stale ? `no update for ${fmtDuration(age)}` : "live");
+}
+
+function render() {
+  const hasData = state.steps.length > 0;
+  $("empty").hidden = hasData;
+  $("content").hidden = !hasData;
+  if (state.start) {
+    setText("strategy", `strategy: ${state.start.strategy}`);
+    setText("symbol", state.start.symbol);
+  }
+  updateStatus();
+  if (!hasData) return;
+  updateKpis();
+  updateDecision();
+  updateCharts();
+  updateLog();
+}
+
+async function poll() {
+  try {
+    const res = await fetch(`/api/events?offset=${state.offset}`, { cache: "no-store" });
+    const payload = await res.json();
+    if (payload.reset) { state.start = null; state.steps = []; }
+    state.offset = payload.offset;
+    for (const e of payload.events) {
+      if (e.type === "start") { state.start = e; state.steps = []; }
+      else if (e.type === "step") state.steps.push(e);
+    }
+    if (state.steps.length > MAX_STEPS) state.steps.splice(0, state.steps.length - MAX_STEPS);
+    render();
+  } catch (err) {
+    $("status-dot").className = "dot";
+    setText("status-text", "dashboard server unreachable");
+  }
+}
+
+for (const btn of document.querySelectorAll("[data-window]")) {
+  btn.addEventListener("click", () => {
+    state.windowS = Number(btn.dataset.window);
+    for (const b of document.querySelectorAll("[data-window]")) b.setAttribute("aria-pressed", String(b === btn));
+    updateCharts();
+  });
+}
+
+$("hide-idle").addEventListener("change", updateLog);
+
+const themeParam = new URLSearchParams(location.search).get("theme");
+if (themeParam === "light" || themeParam === "dark") document.documentElement.dataset.theme = themeParam;
+
+restyleCharts();
+poll();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
