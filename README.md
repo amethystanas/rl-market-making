@@ -22,8 +22,8 @@ value for its latest decision.*
   types (GTC, IOC, FOK, Market, Good-for-day), exchange rules (tick, lot,
   min-notional), live Binance snapshot ingestion, unit tests and a latency
   benchmark.
-- **A2C agent (PyTorch):** actor-critic trained on 8.5 M real SOLUSDT trades
-  aggregated into volume bars, with a market-making environment that uses a
+- **A2C agent (PyTorch):** actor-critic trained and evaluated on 8.5 M real
+  SOLUSDT trades (70% train / 15% validation / 15% test) aggregated into volume bars, with a market-making environment that uses a
   conservative fill model, fees and inventory risk.
 - **One code path from training to live:** the same feature code builds the
   network's input in training, backtesting and live trading, and a unit test
@@ -80,7 +80,7 @@ experiments behind this conclusion and what would make the problem learnable
 
 ## Quick start
 
-Requirements: CMake ≥ 3.16, a C++20 compiler, Python ≥ 3.10.
+Requirements: CMake ≥ 3.16, a C++20 compiler, Python 3.11 (the version it was tested with).
 
 ```bash
 pip install -r requirements.txt
@@ -115,7 +115,7 @@ re-tested since the code was refactored; paper mode is the tested path.)
 
 ```bash
 scripts/download_data.sh SOLUSDT 2026-02            # from data.binance.vision
-python -m agents.rl.train_a2c                       # ~35 s on a laptop CPU
+python -m agents.rl.train_a2c                       # about a minute on a laptop CPU
 python -m agents.rl.evaluate --split test           # tables + docs/figures/a2c_backtest.png
 ```
 

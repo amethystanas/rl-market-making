@@ -24,7 +24,7 @@ and 10 lots, an ask is posted only when there is inventory to sell.
 
 ### Data: volume bars
 
-Training uses Binance `aggTrades` for SOLUSDT, February 2026 (8.5 M trades).
+The data is Binance `aggTrades` for SOLUSDT, February 2026 (8.5 M trades).
 Trades are aggregated into **volume bars** of 1,000 SOL (≈ 3 bars / minute).
 Volume bars sample more often when the market is active, and their returns are
 closer to i.i.d. than time bars. The data is split **chronologically**:
@@ -81,7 +81,7 @@ For each episode (200 steps from a random start in the training split):
 5. Actor: minimise `−log π_θ(a_t|s_t)·A_t − β·H(π_θ)`, with the entropy bonus β decaying linearly from 0.02 to 0.001.
 
 Adam (lr 3e-4 actor, 1e-3 critic), gradient-norm clipping at 0.5, 2,000
-episodes (~35 s on a laptop CPU). Every 100 episodes the greedy policy is
+episodes (about a minute on a laptop CPU). Every 100 episodes the greedy policy is
 backtested on the validation split, and the best checkpoint is saved together
 with its feature settings (`models/a2c.pt`).
 
@@ -173,7 +173,7 @@ steps that would make the problem learnable:
 
 ```bash
 scripts/download_data.sh SOLUSDT 2026-02
-python -m agents.rl.train_a2c                  # ~35 s, writes models/a2c.pt
+python -m agents.rl.train_a2c                  # about a minute, writes models/a2c.pt
 python -m agents.rl.evaluate --split val       # model selection numbers
 python -m agents.rl.evaluate --split test      # held-out numbers above
 ```
